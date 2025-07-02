@@ -1,0 +1,58 @@
+{
+  "name": "excel-csv-mcp-server",
+  "version": "1.0.0",
+  "description": "🚀 The Ultimate Data Science MCP Server - Advanced statistical analysis, ML preprocessing, and data visualization for Excel & CSV files",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "excel-csv-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "lint": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "excel",
+    "csv",
+    "spreadsheet",
+    "data-analysis",
+    "statistics",
+    "data-science",
+    "machine-learning",
+    "correlation",
+    "pivot-table",
+    "data-cleaning",
+    "outlier-detection",
+    "data-profiling",
+    "claude-desktop"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "@types/node": "^24.0.3",
+    "@types/papaparse": "^5.3.16",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.6.0",
+    "csv-stringify": "^6.5.2",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "papaparse": "^5.5.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "xlsx": "^0.18.5"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "@google/generative-ai": "^0.21.0",
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3"
+  }
+}
