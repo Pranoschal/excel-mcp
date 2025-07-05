@@ -111,32 +111,83 @@ export class MCPServer {
         return { row, col };
       }
     
+      // private async readFileContent(filePath: string, sheet?: string): Promise<any[][]> {
+      //   const ext = path.extname(filePath).toLowerCase();
+      //   const absolutePath = path.resolve(filePath);
+      //   try {
+      //     await fs.access(absolutePath);
+      //   } catch {
+      //     throw new Error(`File not found: ${filePath}`);
+      //   }
+    
+      //   if (ext === '.csv') {
+      //     const content = await fs.readFile(absolutePath, 'utf-8');
+      //     return csv.parse(content, {
+      //       skip_empty_lines: true,
+      //       relax_quotes: true,
+      //       relax_column_count: true,
+      //     });
+      //   } else if (ext === '.xlsx' || ext === '.xls') {
+      //     const workbook = XLSX.read(absolutePath);
+      //     const sheetName = sheet || workbook.SheetNames[0];
+      //     const worksheet = workbook.Sheets[sheetName];
+      //     console.log('BUILDING',workbook,'SHEETNAME',sheetName,'WORKSHEET',worksheet)
+      //     // console.log(XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }),'EXCEL WORKSHEET')
+      //     return XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      //   } else {
+      //     throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');
+      //   }
+      // }
+
       private async readFileContent(filePath: string, sheet?: string): Promise<any[][]> {
-        const ext = path.extname(filePath).toLowerCase();
-        const absolutePath = path.resolve(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const absolutePath = path.resolve(filePath);
     
-        try {
-          await fs.access(absolutePath);
-        } catch {
-          throw new Error(`File not found: ${filePath}`);
+    try {
+      await fs.access(absolutePath);
+    } catch (error) {
+      throw new Error(`File not found or not accessible: ${filePath}`);
+    }
+
+    if (ext === '.csv') {
+      const content = await fs.readFile(absolutePath, 'utf-8');
+      return csv.parse(content, {
+        skip_empty_lines: true,
+        relax_quotes: true,
+        relax_column_count: true,
+      });
+    } else if (ext === '.xlsx' || ext === '.xls') {
+      try {
+        const buffer = await fs.readFile(absolutePath);
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        
+        if (!workbook.SheetNames.length) {
+          throw new Error('No sheets found in the workbook');
         }
-    
-        if (ext === '.csv') {
-          const content = await fs.readFile(absolutePath, 'utf-8');
-          return csv.parse(content, {
-            skip_empty_lines: true,
-            relax_quotes: true,
-            relax_column_count: true,
-          });
-        } else if (ext === '.xlsx' || ext === '.xls') {
-          const workbook = XLSX.readFile(absolutePath);
-          const sheetName = sheet || workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          return XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-        } else {
-          throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');
+        
+        const sheetName = sheet || workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        if (!worksheet) {
+          throw new Error(`Sheet "${sheetName}" not found`);
         }
+        
+        console.log('Available sheets:', workbook.SheetNames);
+        console.log('Reading sheet:', sheetName);
+        
+        const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+        console.log('Parsed data rows:', data.length);
+        
+        return data;
+      } catch (error) {
+        console.error('Error reading XLSX file:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown Error Occured'
+        throw new Error(`Failed to read XLSX file: ${errorMessage}`);
       }
+    } else {
+      throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');
+    }
+}
     
       private setupHandlers() {
         this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -765,7 +816,7 @@ export class MCPServer {
       private async readFile(args: any) {
         const { filePath, sheet } = args;
         const data = await this.readFileContent(filePath, sheet);
-        
+        console.log('\n\n\n\nDATA READ', data)
         return {
           content: [
             {
