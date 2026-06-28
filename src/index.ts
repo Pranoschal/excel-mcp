@@ -104,7 +104,7 @@ class ExcelCSVServer {
   }
 
   async run() {
-    const port = 5050;
+    const port = Number(process.env.PORT) || 5050;
 
     this.app.listen(port, () => {
       console.error(`Excel/CSV MCP server running on port ${port}`);
