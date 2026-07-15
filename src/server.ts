@@ -9,6 +9,7 @@ import * as csv from 'csv-parse/sync';
 import * as csvStringify from 'csv-stringify/sync';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+import { resolveLocalFilePath } from './supabase-files.js';
 
 // AI and Formula Engine imports
 import { NLPProcessor } from './ai/nlp-processor.js';
@@ -141,13 +142,7 @@ export class MCPServer {
 
       private async readFileContent(filePath: string, sheet?: string): Promise<any[][]> {
     const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
-    
-    try {
-      await fs.access(absolutePath);
-    } catch (error) {
-      throw new Error(`File not found or not accessible: ${filePath}`);
-    }
+    const absolutePath = await resolveLocalFilePath(filePath);
 
     if (ext === '.csv') {
       const content = await fs.readFile(absolutePath, 'utf-8');
