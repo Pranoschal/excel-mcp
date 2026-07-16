@@ -9,7 +9,7 @@ import * as csv from 'csv-parse/sync';
 import * as csvStringify from 'csv-stringify/sync';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { resolveLocalFilePath } from './supabase-files.js';
+import { publishGeneratedFile, resolveLocalFilePath } from './supabase-files.js';
 
 // AI and Formula Engine imports
 import { NLPProcessor } from './ai/nlp-processor.js';
@@ -1366,6 +1366,56 @@ export class MCPServer {
       }
     
       // Write/Export Tools Implementation
+      private async buildWriteSuccessResponse(
+        absolutePath: string,
+        metadata: Record<string, unknown>
+      ) {
+        const preferredName = path.basename(absolutePath);
+
+        try {
+          const published = await publishGeneratedFile(absolutePath, preferredName);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: true,
+                    ...metadata,
+                    ...published,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } catch (uploadError) {
+          const message =
+            uploadError instanceof Error ? uploadError.message : String(uploadError);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: false,
+                    ...metadata,
+                    error: message,
+                    hint:
+                      'File was written on the server but could not be uploaded to Supabase. Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set on the MCP server.',
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        }
+      }
+
       private async writeFile(args: any) {
         const { filePath, data, headers, sheet = 'Sheet1', sheets } = args;
         const ext = path.extname(filePath).toLowerCase();
@@ -1409,23 +1459,14 @@ export class MCPServer {
           }
           
           XLSX.writeFile(workbook, absolutePath);
-          
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  filePath: absolutePath,
-                  mode: 'multi-sheet',
-                  sheetsWritten: sheets.length,
-                  sheetNames: sheets.map(s => s.name),
-                  totalRowsWritten: totalRows,
-                  maxColumnsWritten: totalColumns,
-                }, null, 2),
-              },
-            ],
-          };
+
+          return this.buildWriteSuccessResponse(absolutePath, {
+            mode: 'multi-sheet',
+            sheetsWritten: sheets.length,
+            sheetNames: sheets.map((s: { name: string }) => s.name),
+            totalRowsWritten: totalRows,
+            maxColumnsWritten: totalColumns,
+          });
         }
         
         // Single sheet mode (backward compatible)
@@ -1448,22 +1489,13 @@ export class MCPServer {
         } else {
           throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls extension.');
         }
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                filePath: absolutePath,
-                mode: 'single-sheet',
-                sheetName: ext === '.csv' ? null : sheet,
-                rowsWritten: fullData.length,
-                columnsWritten: fullData[0]?.length || 0,
-              }, null, 2),
-            },
-          ],
-        };
+
+        return this.buildWriteSuccessResponse(absolutePath, {
+          mode: 'single-sheet',
+          sheetName: ext === '.csv' ? null : sheet,
+          rowsWritten: fullData.length,
+          columnsWritten: fullData[0]?.length || 0,
+        });
       }
     
       private async addSheet(args: any) {
@@ -1589,23 +1621,17 @@ export class MCPServer {
         
         // Write the workbook
         XLSX.writeFile(workbook, absolutePath);
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                filePath: absolutePath,
-                mode: 'multi-sheet-advanced',
-                sheetsCreated: sheets.length,
-                sheetReferences: sheetReferences,
-                sheets: sheetInfo,
-                totalFormulas: sheetInfo.reduce((sum, sheet) => sum + sheet.formulaCount, 0),
-              }, null, 2),
-            },
-          ],
-        };
+
+        return this.buildWriteSuccessResponse(absolutePath, {
+          mode: 'multi-sheet-advanced',
+          sheetsCreated: sheets.length,
+          sheetReferences: sheetReferences,
+          sheets: sheetInfo,
+          totalFormulas: sheetInfo.reduce(
+            (sum, sheet) => sum + sheet.formulaCount,
+            0
+          ),
+        });
       }
     
       private async exportAnalysis(args: any) {
@@ -1710,23 +1736,35 @@ export class MCPServer {
         }
         
         // Write the analysis results to file
-        await this.writeFile({
+        const writeResult = await this.writeFile({
           filePath: outputFile,
           data: exportData.slice(1), // Remove headers
-          headers: exportData[0] // Use first row as headers
+          headers: exportData[0], // Use first row as headers
         });
-        
+
+        const writeData = JSON.parse(writeResult.content[0].text);
+
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({
-                success: true,
-                analysisType,
-                sourceFile,
-                outputFile,
-                rowsExported: exportData.length,
-              }, null, 2),
+              text: JSON.stringify(
+                {
+                  success: writeData.success ?? true,
+                  analysisType,
+                  sourceFile,
+                  outputFile,
+                  rowsExported: exportData.length,
+                  storagePath: writeData.storagePath,
+                  downloadUrl: writeData.downloadUrl,
+                  fileName: writeData.fileName,
+                  expiresIn: writeData.expiresIn,
+                  error: writeData.error,
+                  hint: writeData.hint,
+                },
+                null,
+                2
+              ),
             },
           ],
         };
